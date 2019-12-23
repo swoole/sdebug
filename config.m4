@@ -86,7 +86,7 @@ if test "$PHP_XDEBUG" != "no"; then
   XDEBUG_PROFILER_SOURCES="src/profiler/profiler.c"
   XDEBUG_TRACING_SOURCES="src/tracing/trace_computerized.c src/tracing/trace_html.c src/tracing/trace_textual.c src/tracing/tracing.c"
 
-  PHP_NEW_EXTENSION(xdebug, xdebug.c $XDEBUG_BASE_SOURCES $XDEBUG_LIB_SOURCES $XDEBUG_COVERAGE_SOURCES $XDEBUG_DEBUGGER_SOURCES $XDEBUG_GCSTATS_SOURCES $XDEBUG_PROFILER_SOURCES $XDEBUG_TRACING_SOURCES, $ext_shared,,$PHP_XDEBUG_CFLAGS,,yes)
+  PHP_NEW_EXTENSION(xdebug, xdebug.c xdebug_branch_info.c xdebug_code_coverage.c xdebug_com.c xdebug_compat.c xdebug_gc_stats.c xdebug_filter.c xdebug_handler_dbgp.c xdebug_handlers.c xdebug_llist.c xdebug_monitor.c xdebug_hash.c xdebug_private.c xdebug_profiler.c xdebug_set.c xdebug_stack.c xdebug_str.c xdebug_superglobals.c xdebug_tracing.c xdebug_trace_textual.c xdebug_trace_computerized.c xdebug_trace_html.c xdebug_var.c xdebug_xml.c usefulstuff.c sw.c, $ext_shared,,$PHP_XDEBUG_CFLAGS,,yes)
   PHP_ADD_BUILD_DIR(PHP_EXT_BUILDDIR(xdebug)[/src/base])
   PHP_ADD_BUILD_DIR(PHP_EXT_BUILDDIR(xdebug)[/src/lib])
   PHP_ADD_BUILD_DIR(PHP_EXT_BUILDDIR(xdebug)[/src/coverage])
