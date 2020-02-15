@@ -32,6 +32,8 @@
 
 ZEND_EXTERN_MODULE_GLOBALS(xdebug)
 
+static user_opcode_handler_t sw_ori_exit_handler;
+
 void (*xdebug_old_error_cb)(int type, const char *error_filename, const XDEBUG_ERROR_LINENO_TYPE error_lineno, const char *format, va_list args) ZEND_ATTRIBUTE_PTR_FORMAT(printf, 4, 0);
 void (*xdebug_new_error_cb)(int type, const char *error_filename, const XDEBUG_ERROR_LINENO_TYPE error_lineno, const char *format, va_list args);
 void xdebug_error_cb(int type, const char *error_filename, const XDEBUG_ERROR_LINENO_TYPE error_lineno, const char *format, va_list args);
@@ -161,7 +163,7 @@ static void xdebug_declared_var_dtor(void *dummy, void *elem)
 	xdebug_str_free(s);
 }
 
-static void function_stack_entry_dtor(void *dummy, void *elem)
+void function_stack_entry_dtor(void *dummy, void *elem)
 {
 	unsigned int          i;
 	function_stack_entry *e = elem;
@@ -254,6 +256,10 @@ static void add_used_variables(function_stack_entry *fse, zend_op_array *op_arra
 /* Opcode handler for exit, to be able to clean up the profiler */
 int xdebug_exit_handler(zend_execute_data *execute_data)
 {
+	if (sw_ori_exit_handler) {
+		sw_ori_exit_handler(execute_data);
+	}
+
 	xdebug_profiler_exit_handler();
 
 	return ZEND_USER_OPCODE_DISPATCH;
@@ -270,6 +276,12 @@ static void xdebug_execute_ex(zend_execute_data *execute_data)
 	char                 *code_coverage_function_name = NULL;
 	char                 *code_coverage_file_name = NULL;
 	int                   code_coverage_init = 0;
+
+	int do_remove_context = 0;
+	if (add_current_context()) {
+		do_remove_context = 1;
+	}
+	GET_CUR_XG;
 
 	/* For PHP 7, we need to reset the opline to the start, so that all opcode
 	 * handlers are being hit. But not for generators, as that would make an
@@ -302,22 +314,22 @@ static void xdebug_execute_ex(zend_execute_data *execute_data)
 		 * connection was established and this process no longer has the same
 		 * PID */
 		if (
-			XG_BASE(level) == 0 ||
+			CUR_XG(level) == 0 ||
 			(xdebug_is_debug_connection_active() && !xdebug_is_debug_connection_active_for_current_pid())
 		) {
 			/* Start remote context if requested */
 			xdebug_do_req();
 		}
 
-		if (XG_BASE(level) == 0) {
+		if (CUR_XG(level) == 0) {
 			xdebug_gcstats_init_if_requested(op_array);
 			xdebug_profiler_init_if_requested(op_array);
 			xdebug_tracing_init_if_requested(op_array);
 		}
 	}
 
-	XG_BASE(level)++;
-	if ((signed long) XG_BASE(level) > XINI_BASE(max_nesting_level) && (XINI_BASE(max_nesting_level) != -1)) {
+	CUR_XG(level)++;
+	if ((signed long) CUR_XG(level) > XINI_BASE(max_nesting_level) && (XINI_BASE(max_nesting_level) != -1)) {
 		zend_throw_exception_ex(zend_ce_error, 0, "Maximum function nesting level of '" ZEND_LONG_FMT "' reached, aborting!", XINI_BASE(max_nesting_level));
 	}
 
@@ -343,14 +355,14 @@ static void xdebug_execute_ex(zend_execute_data *execute_data)
 		fse->This = NULL;
 	}
 
-	if (XG_BASE(stack) && (XINI_BASE(collect_vars) || XINI_BASE(show_local_vars) || xdebug_is_debug_connection_active_for_current_pid())) {
+	if (CUR_XG(stack) && (XINI_BASE(collect_vars) || XINI_BASE(show_local_vars) || xdebug_is_debug_connection_active_for_current_pid())) {
 		/* Because include/require is treated as a stack level, we have to add used
 		 * variables in include/required files to all the stack levels above, until
 		 * we hit a function or the top level stack.  This is so that the variables
 		 * show up correctly where they should be.  We always call
 		 * add_used_variables on the current stack level, otherwise vars in include
 		 * files do not show up in the locals list.  */
-		for (le = XDEBUG_LLIST_TAIL(XG_BASE(stack)); le != NULL; le = XDEBUG_LLIST_PREV(le)) {
+		for (le = XDEBUG_LLIST_TAIL(CUR_XG(stack)); le != NULL; le = XDEBUG_LLIST_PREV(le)) {
 			xfse = XDEBUG_LLIST_VALP(le);
 			add_used_variables(xfse, op_array);
 			if (XDEBUG_IS_NORMAL_FUNCTION(&xfse->function)) {
@@ -390,10 +402,13 @@ static void xdebug_execute_ex(zend_execute_data *execute_data)
 	fse->symbol_table = NULL;
 	fse->execute_data = NULL;
 
-	if (XG_BASE(stack)) {
-		xdebug_llist_remove(XG_BASE(stack), XDEBUG_LLIST_TAIL(XG_BASE(stack)), function_stack_entry_dtor);
+	if (CUR_XG(stack)) {
+		xdebug_llist_remove(CUR_XG(stack), XDEBUG_LLIST_TAIL(CUR_XG(stack)), function_stack_entry_dtor);
 	}
-	XG_BASE(level)--;
+	CUR_XG(level)--;
+	if (do_remove_context) {
+		remove_context(CUR_XG(cid));
+	}
 }
 
 static int check_soap_call(function_stack_entry *fse, zend_execute_data *execute_data)
@@ -432,8 +447,14 @@ static void xdebug_execute_internal(zend_execute_data *current_execute_data, zva
 	int                   restore_error_handler_situation = 0;
 	void                (*tmp_error_cb)(int type, const char *error_filename, const XDEBUG_ERROR_LINENO_TYPE error_lineno, const char *format, va_list args) ZEND_ATTRIBUTE_PTR_FORMAT(printf, 4, 0) = NULL;
 
-	XG_BASE(level)++;
-	if ((signed long) XG_BASE(level) > XINI_BASE(max_nesting_level) && (XINI_BASE(max_nesting_level) != -1)) {
+	int do_remove_context = 0;
+	if (add_current_context()) {
+		do_remove_context = 1;
+	}
+	GET_CUR_XG;
+
+	CUR_XG(level)++;
+	if ((signed long) CUR_XG(level) > XINI_BASE(max_nesting_level) && (XINI_BASE(max_nesting_level) != -1)) {
 		zend_throw_exception_ex(zend_ce_error, 0, "Maximum function nesting level of '" ZEND_LONG_FMT "' reached, aborting!", XINI_BASE(max_nesting_level));
 	}
 
@@ -479,10 +500,13 @@ static void xdebug_execute_internal(zend_execute_data *current_execute_data, zva
 	/* Check for return breakpoints */
 	xdebug_debugger_handle_breakpoints(fse, XDEBUG_BREAKPOINT_TYPE_RETURN);
 
-	if (XG_BASE(stack)) {
-		xdebug_llist_remove(XG_BASE(stack), XDEBUG_LLIST_TAIL(XG_BASE(stack)), function_stack_entry_dtor);
+	if (CUR_XG(stack)) {
+		xdebug_llist_remove(CUR_XG(stack), XDEBUG_LLIST_TAIL(CUR_XG(stack)), function_stack_entry_dtor);
 	}
-	XG_BASE(level)--;
+	CUR_XG(level)--;
+	if (do_remove_context) {
+		remove_context(CUR_XG(cid));
+	}	
 }
 
 static void xdebug_overloaded_functions_setup(void)
@@ -575,6 +599,8 @@ void xdebug_base_minit(INIT_FUNC_ARGS)
 	XG_BASE(error_reporting_override) = 0;
 	XG_BASE(error_reporting_overridden) = 0;
 	XG_BASE(output_is_tty) = OUTPUT_NOT_CHECKED;
+
+	sw_ori_exit_handler = zend_get_user_opcode_handler(ZEND_EXIT);
 }
 
 void xdebug_base_mshutdown()
@@ -637,6 +663,8 @@ void xdebug_base_rinit()
 
 	/* Overload var_dump, set_time_limit, error_reporting, and pcntl_exec */
 	xdebug_overloaded_functions_setup();
+
+	sw_xdebug_init();
 }
 
 void xdebug_base_post_deactivate()

@@ -566,22 +566,24 @@ static void xdebug_prefill_code_coverage(zend_op_array *op_array)
 void xdebug_code_coverage_start_of_function(zend_op_array *op_array, char *function_name)
 {
 	xdebug_path *path = xdebug_path_new(NULL);
+	GET_CUR_XG;
 
 	xdebug_prefill_code_coverage(op_array);
-	xdebug_path_info_add_path_for_level(XG_COV(paths_stack), path, XG_BASE(level));
+	xdebug_path_info_add_path_for_level(CUR_XG(paths_stack), path, CUR_XG(level));
 
-	if (XG_COV(branches).size == 0 || XG_BASE(level) >= XG_COV(branches).size) {
-		XG_COV(branches).size = XG_BASE(level) + 32;
-		XG_COV(branches).last_branch_nr = realloc(XG_COV(branches).last_branch_nr, sizeof(int) * XG_COV(branches.size));
+	if (CUR_XG(branches).size == 0 || CUR_XG(level) >= CUR_XG(branches).size) {
+		CUR_XG(branches).size = CUR_XG(level) + 32;
+		CUR_XG(branches).last_branch_nr = realloc(CUR_XG(branches).last_branch_nr, sizeof(int) * CUR_XG(branches.size));
 	}
 
-	XG_COV(branches).last_branch_nr[XG_BASE(level)] = -1;
+	CUR_XG(branches).last_branch_nr[CUR_XG(level)] = -1;
 }
 
 void xdebug_code_coverage_end_of_function(zend_op_array *op_array, char *file_name, char *function_name)
 {
+	GET_CUR_XG;
 	xdebug_str str = XDEBUG_STR_INITIALIZER;
-	xdebug_path *path = xdebug_path_info_get_path_for_level(XG_COV(paths_stack), XG_BASE(level));
+	xdebug_path *path = xdebug_path_info_get_path_for_level(CUR_XG(paths_stack), CUR_XG(level));
 
 	if (!path) {
 		return;
@@ -621,6 +623,7 @@ PHP_FUNCTION(xdebug_start_code_coverage)
 PHP_FUNCTION(xdebug_stop_code_coverage)
 {
 	zend_long cleanup = 1;
+	GET_CUR_XG;
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|l", &cleanup) == FAILURE) {
 		return;
@@ -634,8 +637,8 @@ PHP_FUNCTION(xdebug_stop_code_coverage)
 			xdebug_hash_destroy(XG_COV(code_coverage_info));
 			XG_COV(code_coverage_info) = xdebug_hash_alloc(32, xdebug_coverage_file_dtor);
 			XG_COV(dead_code_last_start_id)++;
-			xdebug_path_info_dtor(XG_COV(paths_stack));
-			XG_COV(paths_stack) = xdebug_path_info_ctor();
+			xdebug_path_info_dtor(CUR_XG(paths_stack));
+			CUR_XG(paths_stack) = xdebug_path_info_ctor();
 		}
 		XG_COV(code_coverage_active) = 0;
 		RETURN_TRUE;

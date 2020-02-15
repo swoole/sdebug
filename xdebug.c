@@ -213,7 +213,7 @@ zend_function_entry xdebug_functions[] = {
 
 zend_module_entry xdebug_module_entry = {
 	STANDARD_MODULE_HEADER,
-	"xdebug",
+	"sdebug",
 	xdebug_functions,
 	PHP_MINIT(xdebug),
 	PHP_MSHUTDOWN(xdebug),
@@ -227,6 +227,8 @@ zend_module_entry xdebug_module_entry = {
 };
 
 ZEND_DECLARE_MODULE_GLOBALS(xdebug)
+
+HashTable sw_xdebug_globals;
 
 #if COMPILE_DL_XDEBUG
 ZEND_GET_MODULE(xdebug)
@@ -1078,6 +1080,7 @@ ZEND_DLEXPORT int xdebug_zend_startup(zend_extension *extension)
 	xdebug_debugger_zend_startup();
 
 	zend_xdebug_initialised = 1;
+	zend_hash_init(&sw_xdebug_globals, 32, NULL, ZVAL_PTR_DTOR, 0);
 
 #if PHP_VERSION_ID >= 70300
 	xdebug_orig_post_startup_cb = zend_post_startup_cb;

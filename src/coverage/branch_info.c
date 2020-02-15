@@ -178,6 +178,7 @@ static void xdebug_path_info_add_path(xdebug_path_info *path_info, xdebug_path *
 static void xdebug_path_info_make_sure_level_exists(xdebug_path_info *path_info, unsigned int level)
 {
 	unsigned int i = 0, orig_size;
+	GET_CUR_XG;
 
 	orig_size = path_info->paths_size;
 
@@ -185,8 +186,8 @@ static void xdebug_path_info_make_sure_level_exists(xdebug_path_info *path_info,
 		path_info->paths_size = level + 32;
 		path_info->paths = realloc(path_info->paths, sizeof(xdebug_path*) * path_info->paths_size);
 
-		for (i = orig_size; i < XG_COV(branches).size; i++) {
-			XG_COV(branches).last_branch_nr[i] = -1;
+		for (i = orig_size; i < CUR_XG(branches).size; i++) {
+			CUR_XG(branches).last_branch_nr[i] = -1;
 		}
 
 		for (i = orig_size; i < path_info->paths_size; i++) {
@@ -344,6 +345,7 @@ void xdebug_branch_info_mark_reached(char *file_name, char *function_name, zend_
 	xdebug_coverage_file *file;
 	xdebug_coverage_function *function;
 	xdebug_branch_info *branch_info;
+	GET_CUR_XG;
 
 	if (XG_COV(previous_mark_filename) && strcmp(XG_COV(previous_mark_filename), file_name) == 0) {
 		file = XG_COV(previous_mark_file);
@@ -377,26 +379,26 @@ void xdebug_branch_info_mark_reached(char *file_name, char *function_name, zend_
 		void *dummy;
 
 		/* Mark out for previous branch, if one is set */
-		if (XG_COV(branches).last_branch_nr[XG_BASE(level)] != -1) {
+		if (CUR_XG(branches).last_branch_nr[CUR_XG(level)] != -1) {
 			size_t i = 0;
 
-			for (i = 0; i < branch_info->branches[XG_COV(branches).last_branch_nr[XG_BASE(level)]].outs_count; i++) {
-				if (branch_info->branches[XG_COV(branches).last_branch_nr[XG_BASE(level)]].outs[i] == opcode_nr) {
-					branch_info->branches[XG_COV(branches).last_branch_nr[XG_BASE(level)]].outs_hit[i] = 1;
+			for (i = 0; i < branch_info->branches[CUR_XG(branches).last_branch_nr[CUR_XG(level)]].outs_count; i++) {
+				if (branch_info->branches[CUR_XG(branches).last_branch_nr[CUR_XG(level)]].outs[i] == opcode_nr) {
+					branch_info->branches[CUR_XG(branches).last_branch_nr[CUR_XG(level)]].outs_hit[i] = 1;
 				}
 			}
 		}
 
-		key = xdebug_sprintf("%d:%d:%d", opcode_nr, XG_COV(branches).last_branch_nr[XG_BASE(level)], XG_BASE(function_count));
+		key = xdebug_sprintf("%d:%d:%d", opcode_nr, CUR_XG(branches).last_branch_nr[CUR_XG(level)], XG_BASE(function_count));
 		if (!xdebug_hash_find(XG_COV(visited_branches), key, strlen(key), (void*) &dummy)) {
-			xdebug_path_add(XG_COV(paths_stack)->paths[XG_BASE(level)], opcode_nr);
+			xdebug_path_add(CUR_XG(paths_stack)->paths[CUR_XG(level)], opcode_nr);
 			xdebug_hash_add(XG_COV(visited_branches), key, strlen(key), NULL);
 		}
 		xdfree(key);
 
 		branch_info->branches[opcode_nr].hit = 1;
 
-		XG_COV(branches).last_branch_nr[XG_BASE(level)] = opcode_nr;
+		CUR_XG(branches).last_branch_nr[CUR_XG(level)] = opcode_nr;
 	}
 }
 

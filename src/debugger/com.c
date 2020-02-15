@@ -452,6 +452,8 @@ int xdebug_is_debug_connection_active()
 
 int xdebug_is_debug_connection_active_for_current_pid()
 {
+	return xdebug_is_debug_connection_active();
+
 	zend_ulong pid;
 
 	/* Early return to save some getpid() calls */

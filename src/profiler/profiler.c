@@ -209,8 +209,9 @@ void xdebug_profiler_deinit()
 {
 	function_stack_entry *fse;
 	xdebug_llist_element *le;
+	GET_CUR_XG;
 
-	for (le = XDEBUG_LLIST_TAIL(XG_BASE(stack)); le != NULL; le = XDEBUG_LLIST_PREV(le)) {
+	for (le = XDEBUG_LLIST_TAIL(CUR_XG(stack)); le != NULL; le = XDEBUG_LLIST_PREV(le)) {
 		fse = XDEBUG_LLIST_VALP(le);
 		xdebug_profiler_function_end(fse);
 	}
@@ -222,7 +223,7 @@ void xdebug_profiler_deinit()
 		zend_memory_peak_usage(0)
 	);
 
-	XG_PROF(profiler_enabled) = 0;
+	// XG_PROF(profiler_enabled) = 0;
 
 	fflush(XG_PROF(profile_file));
 

@@ -503,6 +503,7 @@ static int xdebug_common_assign_dim_handler(const char *op, int do_cc, zend_exec
 	next_opcode = cur_opcode + 1;
 	file = (char*) STR_NAME_VAL(op_array->filename);
 	lineno = cur_opcode->lineno;
+	GET_CUR_XG;
 
 	/* TODO TEST FOR ASSIGNMENTS IN FILTERING */
 //	if (xdebug_is_top_stack_frame_filtered(XDEBUG_FILTER_CODE_COVERAGE)) {
@@ -597,7 +598,7 @@ static int xdebug_common_assign_dim_handler(const char *op, int do_cc, zend_exec
 			val = xdebug_get_zval(execute_data, cur_opcode->op2_type, &cur_opcode->op2, &is_var);
 		}
 
-		fse = XDEBUG_LLIST_VALP(XDEBUG_LLIST_TAIL(XG_BASE(stack)));
+		fse = XDEBUG_LLIST_VALP(XDEBUG_LLIST_TAIL(CUR_XG(stack)));
 		if (XG_TRACE(trace_context) && XINI_BASE(collect_assignments) && XG_TRACE(trace_handler)->assignment) {
 			XG_TRACE(trace_handler)->assignment(XG_TRACE(trace_context), fse, full_varname, val, right_full_varname, op, file, lineno);
 		}
